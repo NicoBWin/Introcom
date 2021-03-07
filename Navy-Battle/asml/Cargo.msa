@@ -1,0 +1,317 @@
+	p68h11
+	public	cargo
+	extern	keypad,display,delay,clearm,c_chck,disbmp	
+$const.def
+****************************************************************************************************************
+* CARGO
+* Gestiona la colocación de los barcos de cada jugador
+* Parametros recibidos en órden de número de memoria ascendente:  
+*	Dir. inicio de la String del teclado por Stack.
+*	Dir. inicio de la matriz donde cargar.
+*	Dir. memorias del display.	
+* Parametros entregados: Ninguno
+****************************************************************************************************************
+	rseg	CODE
+cargo	equ	*
+ 	%PUSH		;programación defensiva
+	
+	ldaa	#C_NUM
+	ldx	#C_INI
+	jsr	clearm	; Reinicio todas las variables
+	
+	ldaa	#$FF
+	staa	letra
+	staa	num
+	ldaa	#C_SUB-1	;Cargo la cantidad de barcos de cada tipo
+	ldab	#C_CARG-1	;en la memoria
+	staa	submar
+	stab	carg
+	clr	rotacion
+	tsx		
+	ldx	12,x	
+	ldaa	#'H'	; Aviso por display que estoy en modo horizontal
+	staa	1,x
+	
+	
+c_key	tsx
+	ldx	12,x
+	jsr	display	; Actualizo el display
+
+	tsx	
+	ldx	10,x	; Apunto a la matriz del jugador
+	jsr	disbmp	; Actualizo el bitmap
+	
+	tsx
+	ldy	8,x
+no_key	jsr	keypad	;Analizo el teclado.
+	bcc	no_key
+	jsr	delay
+
+****************************************************************************************************************
+*					NUMERO APRETADO
+****************************************************************************************************************
+	
+	ldaa	0,y
+	cmpa	#FIL+1
+	bmi	c_num	; Se apretó un número?
+	jmp	salto_c1
+	
+c_num	staa	num		
+	tsx	
+	ldx	12,x
+	ldab	#K_NUM
+	aba	
+	staa	3,x
+	clr	0,x
+	jmp	c_key
+
+****************************************************************************************************************
+*					LETRA APRETADA
+****************************************************************************************************************
+	
+salto_c1	cmpa	#K_LET+COL	; Se apretó una letra?
+	bmi	c_letra
+	jmp	salto_c2
+
+c_letra	tsx	
+	ldx	12,x	
+	staa	2,x
+	clr	0,x
+	ldab	#K_LET
+	sba
+	staa	letra
+	jmp	c_key
+
+****************************************************************************************************************
+*					FIRE APRETADO
+****************************************************************************************************************
+
+salto_c2	cmpa	#'Z'	; Se apretó para confirmar barco?
+	beq	c_coloc
+	jmp	salto_c3
+
+c_coloc	ldaa	letra	; Confirmo que se hayan cargado las coordenadas 
+	cmpa	#$FF	; de forma correcta.
+	bne	salto_c7
+	jsr	c_error
+	jmp	c_key
+	
+salto_c7	ldaa	num	
+	cmpa	#$FF
+	bne	salto_c8
+	jsr	c_error
+	jmp	c_key
+	
+salto_c8	ldaa	submar	; Reviso si cargue todos los submarinos.
+	bpl	c_sub
+	jmp	c_cargue	
+	
+c_sub	tsx		; Si no cargue todos los submarino, cargo submarinos
+	ldx	10,x
+	ldaa	num	
+	deca		; Decrementá el numero para poder direccionar bien a la memoria
+	ldab	#COL
+	mul
+	abx
+	ldab	letra
+	abx
+	ldaa	0,x
+	beq	cargo_su	; Si el casillero esta ocupado salto a error
+	jsr	c_error
+	jmp	c_key
+
+****************************************************************************************
+*				CARGO DE SUBMARINOS
+****************************************************************************************
+	
+cargo_su	ldaa	#0	;Aviso que quiero checkear un submarino
+	psha
+	ldaa	num
+	ldab	letra
+	jsr	c_chck		; paso a revisar que no haya barcos adyacentes
+	pula
+	bcs	ok5
+	jsr	c_error
+	jmp	c_key	
+	
+ok5	ldaa	#SUBMARI	; Si pasó todas las pruebas, cargo el barco.
+	dec	submar
+	staa	0,x
+	
+	tsx		; Aviso por el display que la ubicacion fue 
+	ldx	12,x	;correcta.
+	clr	2,x
+	clr	3,x
+	ldaa	#'C'
+	staa	0,x
+	ldaa	#$FF
+	staa	letra
+	staa	num
+	jmp	c_key
+
+****************************************************************************************
+*				CARGA DE CARGUEROS
+****************************************************************************************
+
+c_cargue	tsx	; Si cargue todos los submarino, cargo cargueros
+	ldx	10,x
+	ldaa	num	
+	deca		; Decrementá el numero para poder direccionar bien a la memoria
+	ldab	#COL	; Apunto a la casilla donde quiero cargar el carguero.
+	mul
+	abx
+	ldab	letra
+	abx
+	ldaa	0,x	
+	beq	ok1	
+	jsr	c_error	; Si el casillero esta ocupado salto a error
+	jmp	c_key
+	
+ok1	ldaa	rotacion	
+	bne	rot_v1	; Dependiendo del sentido colocación reviso casillas diferentes
+	ldaa	letra
+	cmpa	#'F'-K_LET	; Si estoy queriendo colocar un barco horizontal en 
+	bmi	ok6		; la ultima columna salto a error
+	jsr	c_error
+	jmp	c_key
+
+ok6	ldaa	1,x 	; Si estamos en horizontal, miro la casilla de la derecha
+	jmp	salto_c4	; si esta ocupada
+	
+	
+rot_v1	ldaa	num		; Si estoy queriendo colocar un barco vertical en
+	cmpa	#FIL            ; la ultima fila salto a error.
+	bmi	ok7
+	jsr	c_error
+	jmp	c_key
+	
+ok7	ldaa	COL,x	; Si estamos en vertical, miro si la de abajo
+salto_c4	beq	ok2	;esta ocupada
+	jsr	c_error	; Si el casillero esta ocupado salto a error
+	jmp	c_key
+	
+ok2	ldaa	rotacion	
+	bne	rot_v2	; Dependiendo del sentido colocación reviso cosas distintas
+	ldaa	letra
+	cmpa	#COL	; Si es horizontal reviso de no salirme de la fila  
+	bmi	ok3	; en la que estoy
+	jsr 	c_error
+	jmp	c_key
+	
+rot_v2	ldaa	num
+	cmpa	#6	; Si estoy en modo vertical reviso de no salirme de
+	bmi	ok3	; la matriz hacia abajo
+	jsr 	c_error
+	jmp	c_key
+	
+
+ok3	ldaa	rotacion
+	psha
+	ldaa	#1
+	psha
+	ldaa	num
+	ldab	letra	; Una vez checkeado todo lo anterior,
+	jsr	c_chck	; paso a revisar que no haya barcos adyacentes
+	pula
+	pula	
+	bcs	ok4	; Si no hay barcos adyacentes, cargo el barco.
+	jsr	c_error
+	jmp	c_key
+
+
+ok4	ldaa	#CARGUERO	; Si pasó todas las pruebas, cargo el barco
+	staa	0,x	; Cargo el carguero en la casilla de referencia.
+	tst	rotacion
+	bne	rot_v3	; Depende de la orientación , cargo en:
+	staa	1,x	; a) la casilla de la derecha.
+	jmp	salto_c5
+	
+rot_v3	staa	COL,x	; b) en la casilla de abajo.
+
+salto_c5	tsx	; Una vez ubicado el barco, aviso la carga
+	ldx	12,x	; por el display.
+	clr	2,x
+	clr	3,x
+	ldaa	#'C'
+	staa	0,x
+	ldaa	#$FF
+	staa	letra
+	staa	num
+	dec	carg
+	
+	bmi	salto_c6	; Si faltan cargar  barcos, sigo esperando
+	jmp	c_key	; sigo esperando a que los ubiquen
+	
+salto_c6	tsx	
+	ldx	10,x	; Apunto a la matriz del jugador
+	jsr	disbmp	; Actualizo el bitmap
+	jsr	delay
+	jmp	c_fin	
+	
+	
+salto_c3	cmpa	#'X'	; Se apretó rotar
+	beq	rota
+	jmp	salto_c9
+	
+rota	com	rotacion
+	
+	beq	horiz
+	tsx			; Aviso que estoy en modo vertical
+	ldx	12,x
+	ldaa	#'V'	
+	staa	1,x
+	clr	0,x		; Borro el estado de la carga anterior
+	jmp	c_key
+	
+horiz	tsx			; Aviso que estoy en modo horizontal
+	ldx	12,x
+	ldaa	#'H'	
+	staa	1,x
+	clr	0,x		; Borro el estado de la carga anterior
+	jmp	c_key
+	
+salto_c9	cmpa	#'R'	; Se apretó reset
+	beq	reset
+	jmp	c_key
+
+reset	jmp	INICIO	; Si se apretó reset voy al principio del main.
+
+	
+c_fin	%PULL		;programación defensiva
+	rts
+	
+****************************************************************************************************************
+* C_ERROR
+* Acciona el aviso de error de carga
+* Parametros recibidos:  	
+* Parametros entregados: 
+****************************************************************************************************************
+c_error	equ	*
+	ldaa	$FF	; Protocolo de error
+	staa	letra
+	staa	num
+	ldaa	#'E'	; Cargo una "E" en el display
+	tsx	
+	ldx	14,x
+	staa	0,x
+	clr	2,x
+	clr	3,x
+	jsr	display
+	rts
+*************************************************************************************************************
+*************************************************************************************************************
+
+*************************************************************************************************************	
+	rseg	VARS
+C_INI	equ	*	
+letra	rmb	1
+num	rmb	1	
+rotacion	rmb	1
+submar	rmb	1
+carg	rmb	1
+C_NUM	equ	*-C_INI
+	
+*************************************************************************************************************
+*************************************************************************************************************
+
+	END

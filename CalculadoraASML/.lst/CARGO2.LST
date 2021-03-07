@@ -1,0 +1,180 @@
+################################################################################
+#                                                                              #
+#    Micro Series 6801 Assembler V2.00/DOS              06/Nov/19  20:56:40    #
+#                                                                              #
+#       Source   =   cargo2.msa                                                #
+#       List     =   cargo2.lst                                                #
+#       Object   =   cargo2.r07                                                #
+#       Options  =                                                             #
+#                                                                              #
+#                                               (c) Copyright IAR Systems 1990 #
+################################################################################
+
+
+    1  0000                   p68h11
+    2  0000                   public  cargon,cargoop
+    3  0000                   extern  btasci  
+    4                         
+    5                 $const.def      
+    6                 *********************** Ports ****************************
+    7  1007           DDRC    equ     $1007 ;data direction register for C
+    8  1002           PIOC    equ     $1002 ;for strobe B assertion change
+    9  1005           PORTCL  equ     $1005 ;port C latched
+   10  1004           PORTB   equ     $1004 ;port B
+   11  1003           PORTC   equ     $1003 ;rows
+   12                 
+   13                 *************** Cols and Row Ports ***********************
+   14  1003           ROWS    equ     PORTC ;outputs
+   15  1005           COLS    equ     PORTCL ;inputs
+   16                 
+   17                 ******************* Row Masks ****************************
+   18  000E           FIL0    equ     00001110b ;mascaras para manejo de filas
+   19  000D           FIL1    equ     00001101b
+   20  000B           FIL2    equ     00001011b
+   21  0007           FIL3    equ     00000111b
+   22                 **********************************************************
+   23                 *************Caracteristicas de Hardware******************
+   24  0004           DIGITOS equ     4       ;cantidad de elementos del display
+   25  270F           MAX     equ     9999    ;máximo valor de I/O
+   26  FC19           MIN     equ     -999    ;mínimo valor de I/O
+   27  0030           CDC8    equ     $30     ;constante de corrección para ASCII
+   28  0030           ZDIS    equ     $0030   ;cero para el display de 4 elementos
+   29                 **********************************************************
+   30                 ****************************************************************************************************************
+   31                 * CARGON
+   32                 *       Agrega el nuevo digito al operando actual haciendo las multiplicacion y suma necesarias.  
+   33                 * Parametros recibidos: 
+   34                 *   Por IX: Origen de la cadena que contiene el operando.
+   35                 *   Por IY Ubicación del caracter a cargar. 
+   36                 *   Por Stack: Dirección del contador de digitos. (mandar primero)
+   37                 *   Por Stack: Dirección de la memorias a mostrar por display. (mandar despues)
+   38                 *   
+   39                 * Parametros entregados: El nuevo numero en la memoria correspondiente
+   40                 ****************************************************************************************************************
+   41  0000                   rseg    CODE
+   42                 
+   43  0000           cargon  equ *
+   44  0000 36                psha
+   45  0001 37                pshb
+   46  0002 3C                pshx
+   47  0003 183C              pshy
+   48                         
+   49  0005 7F0002            clr     negat
+   50  0008 30                tsx                     
+   51  0009 EE0A              ldx     10,x    ; Apunto IX a la memoria que cuenta los digitos
+   52  000B A600              ldaa    0,x     ; Cargo el contador de digitos
+   53  000D 8104              cmpa    #DIGITOS    
+   54  000F 2503              blo     cargo  ; Si ya tenía 4 digitos no sigo cargando
+   55  0011 7E0066            jmp     fcargon
+   56                         
+   57  0014 30        cargo   tsx
+   58  0015 EE02              ldx     2,x     ; Apunto IX al byte de negatividad del operando
+   59  0017 A600              ldaa    0,x     ; Cargo el byte de negatividad
+   60  0019 2609              bne     nego    ; Si el numero es negativo, salto
+   61                         
+   62  001B EC01              ldd     1,x     ; Cargo en AccD el valor a sumar
+   63  001D 18CE000A          ldy     #10     ; Cargo en IY la base del sistema numerico
+   64  0021 7E0032            jmp     saltoC1
+   65                 
+   66                 
+   67  0024 7C0002    nego    inc     negat
+   68  0027 18CE000A          ldy     #10
+   69  002B EC01              ldd     1,x     ; Cargo en Accd el valor que ya tenía
+   70  002D 43                coma            ; Lo complemento a 2
+   71  002E 53                comb
+   72  002F C30001            addd    #1
+   73  0032 FD0000    saltoC1 std     mem     ; Guardo en una memoria ese valor
+   74  0035 4F                clra            ; Limpio AccD
+   75  0036 5F                clrb
+   76  0037 F30000    multi   addd    mem     ; Sumo el valor que ya tenía tantas veces
+   77  003A 1809              dey             ;como indique la base numerica en la que 
+   78  003C 26F9              bne     multi   ; estoy.
+   79                         
+   80  003E 30                tsx     
+   81  003F 1AEE00            ldy     0,x     ; Apunto IY a la dir donde esta el nuevo caracter
+   82  0042 8F                xgdx            ; Paso la multiplicacion que tenia en Accd a IX
+   83  0043 18E600            ldab    0,y     ; Cargo el nuevo caracter
+   84  0046 3A                abx             ; Sumo el nuevo caracter
+   85  0047 8F                xgdx            ; Paso el nuevo numero a Accd
+   86  0048 7D0002            tst     negat
+   87  004B 2705              beq     apunto
+   88  004D 43                coma
+   89  004E 53                comb
+   90  004F C30001            addd    #1
+   91                 
+   92  0052 30        apunto  tsx
+   93  0053 EE02              ldx     2,x     ; Cargo la dir del indicador de negatividad del operando
+   94  0055 ED01              std     1,x     ; Guardo el numero en el operando pedido
+   95                         
+   96  0057 30                tsx             
+   97  0058 EE0A              ldx     10,x    ; Apunto IX al contador de digitos
+   98  005A 6C00              inc     0,x     ; Incremento el contador de digitos
+   99                         
+  100  005C 30                tsx     
+  101  005D 1AEE08            ldy     8,x     ; Cargo en IY la dir de memoria de mdis
+  102  0060 EE02              ldx     2,x     ; Cargo en IX el numero a mostrar
+  103  0062 08                inx
+  104  0063 BD0000            jsr     btasci  ; Voy a la subrutina que convierte y muestra el numero
+  105                 
+  106  0066 1838      fcargon puly
+  107  0068 38                pulx
+  108  0069 33                pulb
+  109  006A 32                pula
+  110  006B 39                rts
+  111                 
+  112                 ****************************************************************************************************************
+  113                 
+  114                 ****************************************************************************************************************
+  115                 
+  116                 
+  117                 ****************************************************************************************************************
+  118                 * CARGOOP
+  119                 *       Carga el operador en la memoria correspondiente y en el display.        
+  120                 * Parametros recibidos: 
+  121                 *   Por IX: Direccion de la memoria donde guardo el contador de digitos.
+  122                 *   Por IY: Direccion de la memoria donde guardo el operando. 
+  123                 *   Por Acca: Operando a cargar
+  124                 *   Por Stack: Dirección de las memorias del display.
+  125                 *   
+  126                 * Parametros entregados: El operando en la memoria correspondiente
+  127                 ****************************************************************************************************************
+  128  006C                   rseg    CODE
+  129                 
+  130  006C           cargoop equ *
+  131  006C 36                psha
+  132  006D 37                pshb
+  133  006E 3C                pshx
+  134  006F 183C              pshy
+  135                         
+  136  0071 18A700            staa    0,y     ; Guardo el operador donde corresponde
+  137  0074 6F00              clr     0,x     ; Reseteo el contador de digitos
+  138                         
+  139                         
+  140  0076 30                tsx
+  141  0077 EE08              ldx     8,x     ; Cargo en IX la dirección de las memorias que se muestran en el display
+  142  0079 A700              staa    0,x     ; Muestro el operador en el primer digito del display
+  143  007B C603              ldab    #3
+  144  007D 08                inx
+  145  007E 6F00      borrando        clr     0,x     ; Borro los tres ultimos digitos del display
+  146  0080 08                inx
+  147  0081 5A                decb
+  148  0082 26FA              bne     borrando
+  149                         
+  150  0084 1838              puly
+  151  0086 38                pulx
+  152  0087 33                pulb
+  153  0088 32                pula
+  154  0089 39                rts
+  155                         
+  156                 ****************************************************************************************************************
+  157                 ****************************************************************************************************************
+  158                         
+  159  0000                   rseg    VARS
+  160  0000           mem     rmb     2
+  161  0002           negat   rmb     1
+  162  0003                   END
+
+    Errors:  None          ##########
+    Bytes:   138           # cargo2 #
+    CRC:     F2BF          ##########
+

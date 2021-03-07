@@ -1,0 +1,170 @@
+	p68h11
+	public	winchck,navychck,hundido	
+	extern	display
+$const.def
+****************************************************************************************************************
+* WINCHCK
+* Verifica todas las casillas del tablero de disparo del ultimo jugador que jugó, si disparó a 
+* todos los barcos de su oponente, se le da por ganada la partida.
+* Parametros recibidos:  
+*	Por IX el origen de la matriz de la matriz de ubicación de barcos.
+*	Por IY el origen de la matriz de disparo.
+* Parametros entregados: Si hay victoria, coloca Carry en 1
+****************************************************************************************************************
+	rseg	CODE
+winchck	equ	*
+ 	%PUSH		;programación defensiva
+	
+	ldab	#SIZE
+analisis	ldaa	0,x	; Cargamos una nueva casilla de la matriz de barcos
+	beq	verified	; Si no tiene barco, la salteamos
+	ldaa	0,y		; Si tiene barco, lo cargamos
+	anda	#COL_FILT	; aplicamos una máscara para saber si estaba 
+	cmpa	#RED		;hundido. Si estaba hundido, analizo una nueva casilla.
+	bne	nowinner	; Sino descarto la opción de que haya ganador.
+	
+verified	inx		; Pasamos a analizar una nueva casilla
+	iny
+	decb
+	bne	analisis	; Mientras falten casillas seguimos comparando
+	sec			; Si verificamos todas y estan igual, 
+	jmp	fin_chck	;le damos la victoria al jugador.
+	
+nowinner	clc		; Si no hay ganador borramos el carry.
+fin_chck	%PULL		;programación defensiva
+	rts
+*************************************************************************************************************
+*************************************************************************************************************
+
+
+****************************************************************************************************************
+* NAVYCHCK
+* Verifica si el último barco al que se le disparó se hundió.
+* Parametros recibidos:  
+*	Fila del disparo por Acca.
+*	Columna del disparo por Accb.
+*	Casilla a donde se dispara por IY.
+*	Casilla en la matriz donde se ubican los barcos por IX.  
+* Parametros entregados: 
+****************************************************************************************************************
+	rseg	CODE
+navychck	equ	*
+ 	%PUSH		;programación defensiva
+	
+	ldaa	0,x
+	cmpa	#SUBMARI	
+	bne	no_subm
+	jmp	subrojo	; Si se disparó a un submarino, lo pinto rojo.
+	
+no_subm	ldaa	0,x
+	cmpa	#CARGUERO
+	bne	no_carg
+	jmp	carama	; Si se disparó a un submarino, lo pinto amarillo.
+
+no_carg	jmp	n_water	; Si no se disparó a ningún barco, lo pinto azul.
+
+*****************************************************************************************
+*					AGUA
+*****************************************************************************************
+n_water	ldaa	0,x
+	oraa	#BLUE	; Si es agua, le aplico a la casilla
+	staa	0,y	;la mascara azul y la guardo en la matriz de disparo.
+	tsx	
+	ldx	8,x
+	ldaa	#'A'	; Y escribimos una A en el display 
+	staa	0,x
+	jsr	display
+	jmp	f_navy
+
+
+*****************************************************************************************
+*				SUBMARINO HUNDIDO
+*****************************************************************************************
+subrojo	ldaa	0,x
+	oraa	#RED	; Si es submarino, le aplico a la casilla
+	staa	0,y     ;la mascara roja y la guardo en la matriz de disparo.
+	tsx	
+	ldx	8,x
+	ldaa	#'H'	; Y escribimos una H en el display 
+	staa	0,x
+	jsr	display
+	jmp	f_navy
+	
+
+*****************************************************************************************
+*				CARGUERO TOCADO
+*****************************************************************************************	
+carama	ldaa	0,x
+	oraa	#YELLOW	; Si es carguero, le aplico a la casilla
+	staa	0,y	;la mascara amarilla y la guardo en la matriz de disparo.
+	
+	tsx	
+	ldx	8,x	; Y escribimos una T en el display 
+	ldaa	#'T'
+	staa	0,x
+	jsr	display
+	jmp	f_navy
+	
+	
+f_navy	%PULL		;programación defensiva
+	rts
+*************************************************************************************************************
+*************************************************************************************************************
+
+*********************************************************************************
+*HUNDIDO
+*	Si encuentra dos barcos continuos tocados, lo convierte en hundido.
+*Parametros recibidos: 
+*	Inicio de la matriz a transformar por IX. 
+*Parametros entregados: 
+*********************************************************************************
+hundido	equ	*
+	%PUSH	;programación defensiva
+	
+	ldab	#SIZE
+	ldy	#0
+copy	ldaa	0,x		; Cargo una casilla
+	cmpa	#CAR_TOCA	; Si no es un carguero tocado
+	bne	notocado	;analizo la sgte casilla
+	cpy	#COL-1		; Si era un carguero tocado:
+	beq	no_der		;reviso de no estar en la última columna
+	ldaa	1,x		; y si no lo estoy, me fijo si tengo a la
+	cmpa	#CAR_TOCA	;derecha un submarino tocado.
+	bne	no_der	;Si no tengo otro carg. tocado a la derecha 
+	ldaa	0,x	;analizo la casilla inferior 
+	anda	#$F0	; Si tengo otro carguero tocado a la der.:
+	staa	0,x     ;pinto ambas casillas de rojo.
+	staa	1,x
+	sec
+	jmp	final
+	
+no_der	tstb	
+	cmpb	#COL-1
+	bmi	notocado	;Verifico de no estar en la última fila
+	ldaa	COL,x		; Si estoy en la última fila, no analizo las
+	cmpa	#CAR_TOCA	;casillas inferiores.
+	bne	notocado	; Si no estoy en la ultima fila y
+	ldaa	0,x		;tengo otro carguero tocado abajo:
+	anda	#$F0    	;pinto ambas casillas de rojo.
+	staa	0,x
+	staa	COL,x
+	sec
+	jmp	final	
+	
+notocado	inx		;Si no pinte de rojo ningún barco,
+	iny			; paso a analizar la sgte. casilla
+	cpy	#COL		;si es que no analice todas las casillas. 
+	bmi	nada		
+	ldy	#0		; Incremento el indice de columnas,
+nada	decb                    ;manteniendolo entre 0 y 6.
+	beq	final
+	jmp	copy
+	clc
+	
+final	%PULL	;programación defensiva
+	rts
+**********************************************************************************
+**********************************************************************************
+	rseg	VARS
+casilla	rmb	1
+	END

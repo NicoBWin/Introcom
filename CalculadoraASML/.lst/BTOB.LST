@@ -1,0 +1,136 @@
+################################################################################
+#                                                                              #
+#    Micro Series 6801 Assembler V2.00/DOS              06/Nov/19  20:56:48    #
+#                                                                              #
+#       Source   =   btob.msa                                                  #
+#       List     =   btob.lst                                                  #
+#       Object   =   btob.r07                                                  #
+#       Options  =                                                             #
+#                                                                              #
+#                                               (c) Copyright IAR Systems 1990 #
+################################################################################
+
+
+    1  0000                   p68h11
+    2  0000                   public  btasci,zcleaner
+    3                 $const.def
+    4                 *********************** Ports ****************************
+    5  1007           DDRC    equ     $1007 ;data direction register for C
+    6  1002           PIOC    equ     $1002 ;for strobe B assertion change
+    7  1005           PORTCL  equ     $1005 ;port C latched
+    8  1004           PORTB   equ     $1004 ;port B
+    9  1003           PORTC   equ     $1003 ;rows
+   10                 
+   11                 *************** Cols and Row Ports ***********************
+   12  1003           ROWS    equ     PORTC ;outputs
+   13  1005           COLS    equ     PORTCL ;inputs
+   14                 
+   15                 ******************* Row Masks ****************************
+   16  000E           FIL0    equ     00001110b ;mascaras para manejo de filas
+   17  000D           FIL1    equ     00001101b
+   18  000B           FIL2    equ     00001011b
+   19  0007           FIL3    equ     00000111b
+   20                 **********************************************************
+   21                 *************Caracteristicas de Hardware******************
+   22  0004           DIGITOS equ     4       ;cantidad de elementos del display
+   23  270F           MAX     equ     9999    ;máximo valor de I/O
+   24  FC19           MIN     equ     -999    ;mínimo valor de I/O
+   25  0030           CDC8    equ     $30     ;constante de corrección para ASCII
+   26  0030           ZDIS    equ     $0030   ;cero para el display de 4 elementos
+   27                 **********************************************************
+   28                 ****************************************************************************************************************
+   29                 *               Binary to ASCII
+   30                 * Transforma un numero en bcd a binario
+   31                 * Parametros recibidos:  
+   32                 *    Inicio del arreglo de numeros por IX  
+   33                 *    Inicio de mdis por IY
+   34                 * Parametros entregados: Numero en ASCII en la memoria pedida por IY
+   35                 ****************************************************************************************************************
+   36  0000                   rseg    CODE
+   37  0000           btasci  equ     *
+   38  0000 36                psha
+   39  0001 37                pshb
+   40  0002 3C                pshx
+   41  0003 183C              pshy            ;programación defensiva
+   42                         
+   43  0005 EC00              ldd     0,x
+   44  0007 2733              beq     cero
+   45  0009 48                lsla
+   46  000A 2412              bcc     posit   ;en estas cuatro primeras lineas verifico si el númmero es negativo o cero
+   47  000C C62D              ldab    #'-'    ;cargo el sibolo negativo -
+   48  000E 18E700            stab    0,y
+   49  0011 EC00              ldd     0,x     ;cargo el numero a convertir
+   50  0013 43                coma    
+   51  0014 53                comb
+   52  0015 C30001            addd    #1      ;complemento a dos de AccD
+   53  0018 CE0003            ldx     #DIGITOS-1      ;cantidad de numeros a convertir (como es negativo es uno menos)
+   54  001B 3C                pshx
+   55  001C 2006              bra     cargo
+   56  001E EC00      posit   ldd     0,x
+   57  0020 CE0004            ldx     #DIGITOS        ;cantidad de numeros a convertir
+   58  0023 3C                pshx            ;uso una variable temporal que estará en el stack
+   59  0024 CE000A    cargo   ldx     #10     
+   60  0027 02                idiv
+   61  0028 8C0000            cpx     #0
+   62  002B CB30              addb    #CDC8   ;corrección de número decimal a ASCII         
+   63  002D 18E703            stab    3,y     ;lo cargo en mdis para luego ser mostrado en el display
+   64  0030 1809      nonum   dey             ;recorro los elementos del display
+   65  0032 8F                xgdx            ;intercambio para no perder lo que se seguira dividiendo
+   66  0033 38                pulx    
+   67  0034 09                dex             ;decremento el contador de divisiones (variable temporal)
+   68  0035 3C                pshx
+   69  0036 26EC              bne     cargo   ;si el contador es cero es porque cargo todos los elementos del display
+   70  0038 38                pulx            ;corrección de SP
+   71  0039 7E0045            jmp     fin
+   72                 
+   73                 
+   74  003C 18ED00    cero    std     0,y     ;en las últimos tres elementos (de izquierda a derecha)no se ve nada y solo aparece 
+   75  003F CC0030            ldd     #ZDIS   ; un cero en la el primer elemento del display.
+   76  0042 18ED02            std     2,y     
+   77                         
+   78  0045 1838      fin     puly            ;programación defensiva
+   79  0047 38                pulx
+   80  0048 32                pula    
+   81  0049 33                pulb
+   82  004A 39                rts
+   83                 *************************************************************************************************************
+   84                 *************************************************************************************************************
+   85                 
+   86                 ****************************************************************************************************************
+   87                 * ZCLEANER
+   88                 * Borra todos los ceros no significativos del display
+   89                 * Parametros recibidos:  
+   90                 *    Memorias correspondientes al display por IX.
+   91                 * Parametros entregados: Ninguno
+   92                 *************************************************************************************************************
+   93                 
+   94  004B                   rseg    CODE
+   95  004B           zcleaner        equ     *
+   96  004B 36                psha
+   97  004C 37                pshb
+   98  004D 3C                pshx
+   99                         
+  100  004E C604              ldab    #DIGITOS        ; Cargo un contador con la cant de digitos a analizar
+  101  0050 A600      cleaning        ldaa    0,x     ; Cargo un dígito
+  102  0052 812D              cmpa    #'-'            ; Si es el signo negativo, no lo borro pero no lo 
+  103  0054 2707              beq     noclean         ;cuento como un digito significativo
+  104  0056 4D                tsta                    ; Si el caracter es distinto de cero: salgo de la subrutina
+  105  0057 8130              cmpa    #'0'            ; Si el caracter es 0, lo borro.
+  106  0059 2606              bne     fclean  
+  107  005B 6F00              clr     0,x
+  108  005D 08        noclean inx                     ; Apunto al sgte caracter
+  109  005E 5A                decb                    ; Decremento el contador de caracteres a analizar
+  110  005F 26EF              bne     cleaning        ; Sigo analizando mientras queden caracteres.
+  111                         
+  112  0061 38        fclean  pulx
+  113  0062 33                pulb
+  114  0063 32                pula
+  115  0064 39                rts
+  116                 *************************************************************************************************************
+  117                 *************************************************************************************************************
+  118  0065                   END
+
+    Errors:  None           ########
+    Bytes:   101            # btob #
+    CRC:     8463           ########
+

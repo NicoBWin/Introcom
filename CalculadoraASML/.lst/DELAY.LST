@@ -1,0 +1,43 @@
+################################################################################
+#                                                                              #
+#    Micro Series 6801 Assembler V2.00/DOS              06/Nov/19  20:56:32    #
+#                                                                              #
+#       Source   =   delay.msa                                                 #
+#       List     =   delay.lst                                                 #
+#       Object   =   delay.r07                                                 #
+#       Options  =                                                             #
+#                                                                              #
+#                                               (c) Copyright IAR Systems 1990 #
+################################################################################
+
+
+    1                 ****************************************************************************************************************
+    2                 *                                               Delay
+    3                 *       Esta subrutina se escarga de perder timepo de la manera mas eficiente para poder generar un efecto 
+    4                 *       visual en el desplazamiento de las letras en el display. El tiempo aproximado se obtuvo probando ya que 
+    5                 *       el simulador Wookie ejecua las instrucciones mucho mas rápido que el HC11.
+    6                 ****************************************************************************************************************
+    7  0000                   p68h11
+    8  0000                   public  delay
+    9  0012           V1      equ     $12     ;constante de corección para un mejor efecto visual segun el equipo donde se simula
+   10  FFFF           V2      equ     $FFFF   ;paramero del IX para poder generar un delay de 0.5Seg
+   11  0000                   rseg    CODE
+   12  0000           delay   equ     *
+   13  0000 3C                pshx
+   14  0001 36                psha            ;programación defensiva
+   15  0002 8612              ldaa    #V1     ;para alargar o acortar el tiempo modificar este valor
+   16  0004 CEFFFF    loop2   ldx     #V2     ;delay de forma eficiente, solo pierde tiempo decrementando un valor elevado
+   17  0007 09        loop1   dex
+   18  0008 26FD              bne     loop1
+   19  000A 4A                deca            ;para poder repetir el proceso de decrementar IX se modifica AccA
+   20  000B 26F7              bne     loop2
+   21  000D 32                pula            ;programación defensiva
+   22  000E 38                pulx
+   23  000F 39                rts
+   24                         
+   25  0010                   END
+
+    Errors:  None          #########
+    Bytes:   16            # delay #
+    CRC:     A3DA          #########
+

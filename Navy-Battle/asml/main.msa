@@ -1,0 +1,148 @@
+****************************************************************************************************************
+*						Batalla Naval						Grupo: 7
+*	Este programa es una represntación del juego Batalla Naval para ser usado en el simulador del P68H11 el 
+* 	Wookie. Esta compuesto por dos partes, Main1 para cargar las piezas del juego y Main2 que se encarga de
+*	la dinámica del juego.
+****************************************************************************************************************
+	
+	p68h11		;declara el modelo de microprocesador utilizado.
+	extern		keypad,winchck,navychck,cargo,turnos			;Varios
+	extern		initdis,initbm,outchar,clearm,setm,display,delay,disbmp	;De subruts
+$const.def
+****************************************************************************************************************
+*	MAIN 1:
+*	 Esta parte del main es la inicial del juego y se encarga iniciar los tableros de juego y de cargar los 
+*	 submarinos y barcos al tablero de juego correspondiente a cada jugador.
+****************************************************************************************************************
+	rseg	CODE
+	lds 	#st_ini	; Inicializo el stack
+	jsr	initdis
+	
+	ldx	#m_reset
+	stx	XIRQ
+	tap
+	
+	ldx	#MP1
+	ldaa	#COL*FIL*2
+	jsr	clearm	; Limpio las matrices de los tableros
+	ldx	#JP1
+	ldaa	#COL*FIL*2
+	jsr	setm	; Limpio las matrices de los tableros de juego
+	
+	ldx	#M_INI
+	ldaa	#NVARS
+	jsr	clearm	; Limpio las variables
+	
+	ldx	#mdis
+	jsr	display
+	pshx
+	ldx	#MP1
+	pshx
+	ldx	#I_STR
+	pshx
+	jsr	cargo	; Cargamos el primer tablero
+	pulx
+	pulx
+	pulx
+	
+	tst	memreset
+	beq	noreset1
+	dec	memreset
+	jmp	INICIO
+	
+noreset1	ldx	#mdis
+	pshx
+	ldx	#MP2
+	pshx
+	ldx	#I_STR
+	pshx
+	jsr	cargo	; Cargamos el segundo tablero
+	pulx
+	pulx
+	pulx
+
+****************************************************************************************************************
+*	MAIN 2:
+*	 Esta parte del main es la que se encarga de la dinamica del juego, los barcos hundidos, indicar al 
+*	 ganador, etc.
+****************************************************************************************************************	
+	
+	tst	memreset
+	beq	noreset2
+	dec	memreset
+	jmp	INICIO
+	
+noreset2	clr	turno
+	ldx	#mdis
+	clr	0,x
+	clr	1,x
+	jsr	display
+	
+jugando	ldaa	turno
+	bne	turnop2	
+	ldx	#JP1	; Si juega el jugador 1:
+	pshx		;Guardamos en el stack el tablero de 
+	ldx	#MP2	; disparos del jugador 1 y el tablero
+	pshx		;donde ubico los barcos el jugador 2
+	jmp	turnop1
+	
+turnop2	ldx	#JP2	; Si juega el jugador 2:
+	pshx            ;Guardamos en el stack el tablero de 
+	ldx	#MP1    ; disparos del jugador 2 y el tablero
+	pshx            ;donde ubico los barcos el jugador 1
+turnop1	ldx	#I_STR	
+	ldy	#mdis	
+	jsr	turnos	; Saltamos al gestor de turnos
+
+	tst	memreset
+	beq	noreset3
+	dec	memreset
+	jmp	INICIO
+	
+noreset3	tst	turno	; Pasamos el turno al que le corresponda
+	beq	tocap2
+	dec	turno
+	jmp	tocap1
+tocap2	inc	turno
+tocap1	jmp	jugando
+	
+m_reset	inc	memreset
+	rti
+
+****************************************************************************************************************
+	rseg	VARS
+M_INI	equ	*	
+turno	rmb 	1	; Mem. donde se guarda a quien le corresponde jugar
+mdis	rmb	4	; Memorias que se muestran en el display
+memreset	rmb	1
+NVARS	equ	*-M_INI
+****************************************************************************************************************	
+
+****************************************************************************************************************
+	rseg	BITMAP
+MP1	rmb	SIZE	; Matriz donde ubica los barcos P1
+MP2	rmb	SIZE	; Matriz donde ubica los barcos P2
+JP1	rmb	SIZE	; Tablero sobre el que juega P1
+JP2	rmb	SIZE	; Tablero sobre el que juega P2
+****************************************************************************************************************
+
+****************************************************************************************************************
+	rseg	STACK
+stack	rmb	$100	;el programa hace uso coherente del stack, pero se asigno un espacio extra.
+st_ini	equ	*-1
+****************************************************************************************************************
+
+****************************************************************************************************************
+	rseg	STRING
+I_STR	fcc	'ABCX'
+	fcc	'DEFY'
+	fcb	1
+	fcb	2
+	fcb	3
+	fcc	'Z'
+	fcb	4
+	fcb	5
+	fcb	6
+	fcc	'R'
+
+	END

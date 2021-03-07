@@ -1,0 +1,181 @@
+################################################################################
+#                                                                              #
+#    Micro Series 6801 Assembler V2.00/DOS              06/Nov/19  20:56:26    #
+#                                                                              #
+#       Source   =   subrut1.msa                                               #
+#       List     =   subrut1.lst                                               #
+#       Object   =   subrut1.r07                                               #
+#       Options  =                                                             #
+#                                                                              #
+#                                               (c) Copyright IAR Systems 1990 #
+################################################################################
+
+
+    1  0000                   p68h11
+    2  0000                   public  initdis,outchar,init,display,error
+    3  0000                   extern  keypad,delay
+    4                 $const.def
+    5                 *********************** Ports ****************************
+    6  1007           DDRC    equ     $1007 ;data direction register for C
+    7  1002           PIOC    equ     $1002 ;for strobe B assertion change
+    8  1005           PORTCL  equ     $1005 ;port C latched
+    9  1004           PORTB   equ     $1004 ;port B
+   10  1003           PORTC   equ     $1003 ;rows
+   11                 
+   12                 *************** Cols and Row Ports ***********************
+   13  1003           ROWS    equ     PORTC ;outputs
+   14  1005           COLS    equ     PORTCL ;inputs
+   15                 
+   16                 ******************* Row Masks ****************************
+   17  000E           FIL0    equ     00001110b ;mascaras para manejo de filas
+   18  000D           FIL1    equ     00001101b
+   19  000B           FIL2    equ     00001011b
+   20  0007           FIL3    equ     00000111b
+   21                 **********************************************************
+   22                 *************Caracteristicas de Hardware******************
+   23  0004           DIGITOS equ     4       ;cantidad de elementos del display
+   24  270F           MAX     equ     9999    ;máximo valor de I/O
+   25  FC19           MIN     equ     -999    ;mínimo valor de I/O
+   26  0030           CDC8    equ     $30     ;constante de corrección para ASCII
+   27  0030           ZDIS    equ     $0030   ;cero para el display de 4 elementos
+   28                 **********************************************************
+   29  0000                   rseg    CODE
+   30                 **************************************
+   31                 *Initdis: Inicializar el display
+   32                 **************************************
+   33  0000           initdis equ *
+   34  0000 36                psha
+   35  0001 860F              ldaa    #$0F    ;set for output
+   36  0003 B71007            staa    DDRC    ;C output
+   37  0006 B61002            ldaa    PIOC    ;get current value
+   38  0009 84FE              anda    #$FE    ;reset bit 0 to 0
+   39  000B B71002            staa    PIOC    ;send it out
+   40  000E 32                pula
+   41  000F 39                rts
+   42                 
+   43                 **************************************
+   44                 *Outchar: 
+   45                 * ACCA: Carácter a enviar
+   46                 * ACCB: Posición (0-3)
+   47                 **************************************
+   48  0010           outchar equ *
+   49  0010 F71005            stab    PORTCL  ;set the position
+   50  0013 B71004            staa    PORTB   ;set the character
+   51  0016 39                rts
+   52                         
+   53                 ********************************************************************************
+   54                 *INIT: 
+   55                 * Borra N cantidad de memorias desde la dirección pedida
+   56                 *       Parametros recibidos:
+   57                 *  Dirección de origen por IX
+   58                 *  Cant de memorias a borrar por AccA
+   59                 *       Parametros entregados: Ninguno
+   60                 ********************************************************************************
+   61  0017           init    equ *
+   62  0017 3C                pshx
+   63  0018 36                psha            ;programación defensiva
+   64                         
+   65  0019 6F00      borra   clr     0,x     ; Borro una memoria
+   66  001B 08                inx             ; Apunto IX a la sgte memoria
+   67  001C 4A                deca            ; Decremento el contador
+   68  001D 26FA              bne     borra   ; Sigo borrando hasta que se borren todas las memorias
+   69                         
+   70  001F 32                pula            ;programación defensiva
+   71  0020 38                pulx
+   72  0021 39                rts
+   73                         
+   74                 *********************************************************************************
+   75                 *DISPLAY
+   76                 *  Carga el contenido de las posiciones de memoria mdis0, mdis1, mdis2, mdis3
+   77                 * y muesta su contenido en el display en la posicion 0, 1, 2, 3, respectivamente
+   78                 *       Parametros recibidos: 
+   79                 *  Inicio de string con caracteres a mostrar por IX
+   80                 *       Parametros entregados: El texto mostrado en el display
+   81                 *********************************************************************************
+   82                 
+   83  0022           display equ     *
+   84                 
+   85  0022 36                psha
+   86  0023 37                pshb            ;programación defensiva
+   87                         
+   88  0024 5F                clrb            ;limpia b para poder posicionarse en el primer elemento del display
+   89  0025 A603              ldaa    3,x     ;carga el cuarto valor de la posición del string para ponerlo en 
+   90  0027 BD0010            jsr     outchar  el primer elemento del display
+   91  002A 5C                incb
+   92  002B A602              ldaa    2,x     ;carga el tercer valor de la posición del string para ponerlo en 
+   93  002D BD0010            jsr     outchar  el segundo elemento del display
+   94  0030 5C                incb
+   95  0031 A601              ldaa    1,x     ;carga el segundo valor de la posición del string para ponerlo en 
+   96  0033 BD0010            jsr     outchar  el tercer elemento del display
+   97  0036 5C                incb
+   98  0037 A600              ldaa    0,x     ;carga el primer valor de la posición del string para ponerlo en
+   99  0039 BD0010            jsr     outchar  el cuarto elemento del display
+  100                         
+  101  003C 33                pulb            ;programación defensiva
+  102  003D 32                pula
+  103  003E 39                rts
+  104                 
+  105                 **********************************************************************************************
+  106                 *ERROR
+  107                 * Pone una "E" en el display y "congela" la calculadora hasta que se aprete clear y se borren
+  108                 *todas las memorias.
+  109                 *Parametros recibidos:
+  110                 *       Primer dirección del arreglo numerico por IX
+  111                 *       Origen del arreglo del teclado por IY
+  112                 *       Cant memorias a borrar por AccB
+  113                 *       Memorias que se muestran en el display por stack
+  114                 *Parametros entregados: Ninguno
+  115                 **********************************************************************************************
+  116  003F           error   equ     *
+  117  003F 36                psha            
+  118  0040 37                pshb
+  119  0041 3C                pshx
+  120  0042 183C              pshy            ; Programación defensiva
+  121                         
+  122  0044 30                tsx             ; Creo un framepointer
+  123  0045 EE08              ldx     8,x     ; Cargo en IX la dir de mdis
+  124  0047 8645              ldaa    #'E'    ; Cargo "E" en la primer memoria del display
+  125  0049 A700              staa    0,x     
+  126  004B C603              ldab    #3
+  127  004D 08                inx
+  128  004E 6F00      erase   clr     0,x     ; Borro los tres ultimos digitos del display
+  129  0050 08                inx
+  130  0051 5A                decb
+  131  0052 26FA              bne     erase
+  132                         
+  133  0054 30                tsx             ; Creo un framepointer
+  134  0055 EE08              ldx     8,x     ; Cargo en IX la dir de  mdis
+  135  0057 BD0022            jsr     display ; Refresco el display
+  136                         
+  137  005A 30        waitclr tsx
+  138  005B 1AEE00            ldy     0,x     ; Si entre en error, lo mantengo en el bucle
+  139  005E BD0000            jsr     keypad  ;hasta que se aprete clear y se borren todas 
+  140  0061 18A600            ldaa    0,y     ;las memorias
+  141  0064 8143              cmpa    #'C'
+  142  0066 26F2              bne     waitclr
+  143                         
+  144  0068 30                tsx             ; Creo un framepointer
+  145  0069 A604              ldaa    4,x     ; Cargo en Acca la cant de memorias a borrar
+  146  006B EE02              ldx     2,x     ; Cargo la dirección del inicio del arreglo numerico en IX
+  147  006D BD0017            jsr     init    ; Borro memorias
+  148                         
+  149  0070 8630              ldaa    #'0'    ; Cargo "0" en Acca
+  150  0072 30                tsx             ; Creo un framepointer
+  151  0073 EE08              ldx     8,x     ; Cargo en IX la dir. de mdis
+  152  0075 A703              staa    3,x     ; Guardo el "0" en el ult digito del display
+  153                         
+  154  0077 1838              puly            ; Programación defensiva
+  155  0079 38                pulx
+  156  007A 33                pulb
+  157  007B 32                pula
+  158  007C 39                rts             ; Retorno a la subrutina sin haber modificado ningún registro no deseado
+  159                         
+  160                 **********************************************************************************************
+  161                 **********************************************************************************************
+  162                 
+  163  007D                   END
+
+    Errors:  None         ###########
+    Bytes:   125          # subrut1 #
+    CRC:     EFBF         ###########
+

@@ -1,0 +1,81 @@
+	p68h11
+	public	keypad
+$const.def
+****************************************************************************************************************
+* KEYPAD
+*	Verifica si se pulso alguna tecla y determina las coordenadas de la misma.
+* Parametros recibidos: Dirección del string del teclado por IY.
+* Parametros entregados: Coordenadas del pulsado por IY
+****************************************************************************************************************
+	rseg	CODE
+keypad	equ 	*
+	psha
+	pshb		
+	pshx		;programación defensiva
+	
+	ldab	#$03	;indicador de posicion de columna
+	ldaa	#$0	;indicador de posición de fila 
+	psha		;con frame pointer lo recuperamos en la subrutina transla
+	ldaa	#FIL0
+	staa 	PORTC
+	ldaa	PORTC
+cloop0	asla
+	bcc	pul
+	decb	
+	bge	cloop0
+	
+	ldab	#$03
+	ins
+	ldaa	#$1	;indicador de posición de fila 
+	psha		;con frame pointer lo recuperamos en la subrutina transla
+	ldaa	#FIL1
+	staa 	PORTC
+	ldaa	PORTC
+cloop1	asla
+	bcc	pul
+	decb
+	bge	cloop1
+	
+	ldab	#$03
+	ins
+	ldaa	#$2	;indicador de posición de fila 
+	psha		;con frame pointer lo recuperamos en la subrutina transla
+	ldaa	#FIL2
+	staa 	PORTC
+	ldaa	PORTC
+cloop2	asla
+	bcc	pul
+	decb	
+	bge	cloop2
+	
+	ldab	#$03
+	ins
+	ldaa	#$3	;indicador de posición de fila 
+	psha		;con frame pointer lo recuperamos en la subrutina transla
+	ldaa	#FIL3
+	staa 	PORTC
+	ldaa	PORTC
+cloop3	asla
+	bcc	pul
+	decb	
+	bge	cloop3
+	clc		; Aviso por carry que no se apreto
+	ins
+	bra	nopul
+	
+pul	pula		;recupero la fila donde estaba leyendo
+	lsla		;multiplico por cuatro (tamaño de la columna)
+	lsla
+	aba		;nos pocicionamos en el caracter apretado dentro del string
+	tab
+	aby		;se lo sumamos a la posición donde empezaba el string
+	
+	sec		;Aviso por carry que se cargo un numero
+nopul	pulx		;programación defensiva
+	pulb		
+	pula
+	rts
+****************************************************************************************************************
+****************************************************************************************************************
+
+	END

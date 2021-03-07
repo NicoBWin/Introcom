@@ -1,0 +1,68 @@
+*********************** Ports ****************************
+DDRC 	equ 	$1007 	;data direction register for C
+PIOC 	equ 	$1002 	;for strobe B assertion change
+PORTCL 	equ 	$1005 	;port C latched
+PORTB	equ 	$1004 	;port B
+PORTC 	equ 	$1003 	;rows
+INICIO	equ	$2000	; Inicio del programa
+XIRQ	equ	$FFF4
+*************** Cols and Row Ports ***********************
+ROWS 	equ 	PORTC 	;outputs
+COLS 	equ 	PORTCL 	;inputs
+
+******************* Row Masks ****************************
+FIL0	equ 	00001110b ;mascaras para manejo de filas
+FIL1 	equ 	00001101b
+FIL2 	equ 	00001011b
+FIL3 	equ 	00000111b
+**********************************************************
+
+******************* BitMap *******************************
+CONTROL	equ	$0100	;parametros del BitMap
+MATRIZ	equ	$5F00	;posición de lectura para el Bitmap
+FIL	equ	6	; Cant de filas del tablero
+COL	equ	6	; Cant de columnas del tablero
+SIZE	equ	COL*FIL	; Tamaño de los tableros
+RGB	equ	$0	;si vale 1 es BGR
+
+****************** Mascaras ******************************
+RED	equ	$30
+GREEN	equ	$0C
+BLUE	equ	$03
+YELLOW	equ	$3C
+I_WHITE	equ	$63
+OFF	equ	$00
+DARK	equ	$55
+TENUE	equ	$AA
+INTENSO	equ	$FF
+WATER	equ	$00	; Config. agua
+CLOUD	equ	$FF	; Config. nubes
+COL_FILT	equ	$3F	; Filtro para analiz. el color de las casillas
+CAR_TOCA	equ	$BC	; Valor que tiene un carguero tocado	
+
+****************** Barcos ********************************
+CARGUERO	equ	$80	; Valor de un carguero
+SUBMARI		equ	$40	; Valor de un submarino
+C_SUB		equ	3	; Cantidad de submarinos 
+C_CARG		equ	2	; Cantidad de cagueros		
+	
+****************** Display *******************************
+K_NUM		equ	$30	; Constante para los numeros	
+K_LET		equ	$41	; Constante para las letras
+**********************************************************
+
+********** MACROS para programación defensiva*************
+	MACRO	%PULL
+	puly
+	pulx
+	pulb
+	pula
+	ENDMAC
+	
+	MACRO	%PUSH
+	psha
+	pshb
+	pshx
+	pshy
+	ENDMAC
+**********************************************************

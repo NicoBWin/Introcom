@@ -1,0 +1,124 @@
+################################################################################
+#                                                                              #
+#    Micro Series 6801 Assembler V2.00/DOS              06/Nov/19  16:46:50    #
+#                                                                              #
+#       Source   =   colrow.msa                                                #
+#       List     =   colrow.lst                                                #
+#       Object   =   colrow.r07                                                #
+#       Options  =                                                             #
+#                                                                              #
+#                                               (c) Copyright IAR Systems 1990 #
+################################################################################
+
+
+    1  0000                   p68h11
+    2  0000                   public  keypad
+    3  0000                   extern  outchar
+    4                 $const.def
+    5                 *********************** Ports ****************************
+    6  1007           DDRC    equ     $1007 ;data direction register for C
+    7  1002           PIOC    equ     $1002 ;for strobe B assertion change
+    8  1005           PORTCL  equ     $1005 ;port C latched
+    9  1004           PORTB   equ     $1004 ;port B
+   10  1003           PORTC   equ     $1003 ;rows
+   11                 
+   12                 *************** Cols and Row Ports ***********************
+   13  1003           ROWS    equ     PORTC ;outputs
+   14  1005           COLS    equ     PORTCL ;inputs
+   15                 
+   16                 ******************* Row Masks ****************************
+   17  000E           FIL0    equ     00001110b ;mascaras para manejo de filas
+   18  000D           FIL1    equ     00001101b
+   19  000B           FIL2    equ     00001011b
+   20  0007           FIL3    equ     00000111b
+   21                 **********************************************************
+   22                 *************Caracteristicas de Hardware******************
+   23  0004           DIGITOS equ     4
+   24  270F           MAX     equ     9999
+   25  FC19           MIN     equ     -999
+   26                 **********************************************************
+   27                 ****************************************************************************************************************
+   28                 * KEYPAD
+   29                 *       Verifica si se pulso alguna tecla y determina las coordenadas de la misma.
+   30                 * Parametros recibidos: Dirección del string del teclado por IY.
+   31                 * Parametros entregados: Coordenadas del pulsado por memoria
+   32                 ****************************************************************************************************************
+   33  0000                   rseg    CODE
+   34  0000           keypad  equ     *
+   35  0000 36                psha
+   36  0001 37                pshb            
+   37  0002 3C                pshx            ;programación defensiva
+   38                         
+   39  0003 C603              ldab    #$03    ;indicador de posicion de columna
+   40  0005 8600              ldaa    #$0     ;indicador de posición de fila 
+   41  0007 36                psha            ;con frame pointer lo recuperamos en la subrutina transla
+   42  0008 860E              ldaa    #FIL0
+   43  000A B71003            staa    PORTC
+   44  000D B61003            ldaa    PORTC
+   45  0010 48        cloop0  asla
+   46  0011 2443              bcc     pul
+   47  0013 5A                decb    
+   48  0014 2CFA              bge     cloop0
+   49                         
+   50  0016 C603              ldab    #$03
+   51  0018 31                ins
+   52  0019 8601              ldaa    #$1     ;indicador de posición de fila 
+   53  001B 36                psha            ;con frame pointer lo recuperamos en la subrutina transla
+   54  001C 860D              ldaa    #FIL1
+   55  001E B71003            staa    PORTC
+   56  0021 B61003            ldaa    PORTC
+   57  0024 48        cloop1  asla
+   58  0025 242F              bcc     pul
+   59  0027 5A                decb
+   60  0028 2CFA              bge     cloop1
+   61                         
+   62  002A C603              ldab    #$03
+   63  002C 31                ins
+   64  002D 8602              ldaa    #$2     ;indicador de posición de fila 
+   65  002F 36                psha            ;con frame pointer lo recuperamos en la subrutina transla
+   66  0030 860B              ldaa    #FIL2
+   67  0032 B71003            staa    PORTC
+   68  0035 B61003            ldaa    PORTC
+   69  0038 48        cloop2  asla
+   70  0039 241B              bcc     pul
+   71  003B 5A                decb    
+   72  003C 2CFA              bge     cloop2
+   73                         
+   74  003E C603              ldab    #$03
+   75  0040 31                ins
+   76  0041 8603              ldaa    #$3     ;indicador de posición de fila 
+   77  0043 36                psha            ;con frame pointer lo recuperamos en la subrutina transla
+   78  0044 8607              ldaa    #FIL3
+   79  0046 B71003            staa    PORTC
+   80  0049 B61003            ldaa    PORTC
+   81  004C 48        cloop3  asla
+   82  004D 2407              bcc     pul
+   83  004F 5A                decb    
+   84  0050 2CFA              bge     cloop3
+   85  0052 0C                clc             ; Aviso por carry que no se apreto
+   86  0053 31                ins
+   87  0054 2008              bra     nopul
+   88                         
+   89  0056 32        pul     pula            ;recupero la fila donde estaba leyendo
+   90  0057 48                lsla            ;multiplico por cuatro (tamaño de la columna)
+   91  0058 48                lsla
+   92  0059 1B                aba             ;nos pocicionamos en el caracter apretado dentro del string
+   93  005A 16                tab
+   94  005B 183A              aby             ;se lo sumamos a la posición donde empezaba el string
+   95                         
+   96  005D 0D                sec             ;Aviso por carry que se cargo un numero
+   97  005E 38        nopul   pulx            ;programación defensiva
+   98  005F 33                pulb            
+   99  0060 32                pula
+  100  0061 39                rts
+  101                         
+  102                         
+  103                 ****************************************************************************************************************
+  104                 ****************************************************************************************************************
+  105                 
+  106  0062                   END
+
+    Errors:  None          ##########
+    Bytes:   98            # colrow #
+    CRC:     64E4          ##########
+

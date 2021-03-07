@@ -1,0 +1,288 @@
+	p68h11
+	public	turnos
+	extern	keypad,display,delay,c_chck,navychck,disbmp,disbmpt,hundido,winchck	
+$const.def
+****************************************************************************************************************
+* TURNOS
+* Gestiona los aconetecimientos en turnos de los jugadores.
+* Parametros recibidos en órden de número de memoria ascendente:
+*	Jugador al que le corresponde el turno por Acca.  
+*	Dir. inicio de la String del teclado por Stack IX.
+*	Dir. inicio de la matriz donde se ubican los barcos.
+*	Dir. memorias del display IY.	
+* Parametros entregados: Ninguno
+****************************************************************************************************************
+	rseg	CODE
+turnos	equ	*
+	%PUSH		;programación defensiva
+	
+	
+	ldaa	#$FF	; Reinicio las variables locales
+	staa	columna
+	staa	fila
+	
+	tsx		; Actualizo el bitmap
+	ldx	10,x	
+	jsr	disbmp	
+	
+	tsx		; Cargo el jugador en el display.
+	ldaa	5,x
+	adca	#(K_NUM)+1
+	ldx	0,x
+	staa	1,x
+	ldaa	#'P'
+	staa	0,x	
+	
+t_key	tsx		; Actualizo el display
+	ldx	0,x
+	jsr	display	
+	
+	tsx		
+	ldy	2,x
+no_key	jsr	keypad	;Analizo el teclado.
+	bcc	no_key
+	jsr	delay
+	
+
+****************************************************************************************************************
+*					NUMERO APRETADO
+****************************************************************************************************************	
+	ldaa	0,y
+	cmpa	#FIL+1	
+	bmi	t_fil	; Se apretó un número?
+	jmp	salto_t1
+	
+t_fil	staa	fila		
+	tsx	
+	ldx	0,x	; Actualizo el display.
+	clr	0,x
+	clr	1,x
+	ldab	#K_NUM
+	aba	
+	staa	3,x
+	jmp	t_key
+	
+
+****************************************************************************************************************
+*					LETRA APRETADA
+****************************************************************************************************************	
+
+salto_t1	cmpa	#'A'+COL	; Se apretó una letra?
+	bmi	t_col
+	jmp	salto_t2
+
+t_col	tsx		; Actualizo el display.
+	ldx	0,x	
+	staa	2,x
+	clr	0,x
+	clr	1,x
+	ldab	#K_LET
+	sba
+	staa	columna
+	jmp	t_key
+
+****************************************************************************************************************
+*					FIRE APRETADO
+****************************************************************************************************************
+	
+salto_t2	cmpa	#'Z'	; Se apretó confirmar disparo?
+	beq	t_fire
+	jmp	salto_t3
+	
+t_fire	ldaa	fila	; Verifico que se hayan cargado coordenadas
+	cmpa	#$FF	; Si no hay coordenadas salto a error
+	bne	okfila
+	jmp 	t_error
+	
+okfila	ldaa	columna
+	cmpa	#$FF
+	bne	okcol
+	jmp 	t_error
+
+okcol	tsx		
+	ldx	0,x	; Guardo mdis para no tener que
+	pshx		; guardarlo despues. 
+	
+	tsx	
+	ldy	12,x	; Dir. origen de matriz de disparo
+	ldx	10,x	; Dir. origen de matriz de barcos
+	ldaa	fila	; Apunto en ambas matrices a donde se
+	deca            ;disparó con IY e IX.
+	ldab	#COL
+	mul
+	aby
+	abx	
+	ldab	columna
+	aby
+	abx		 
+	ldaa	0,y	
+	cmpa	#CLOUD	; Verifico que no se haya disparado 
+	beq	ok_fire1	; a esa casilla previamente
+	ins
+	ins		; Saco del stack mdis
+	jmp	t_error
+	
+ok_fire1	ldaa	fila	
+	ldab	columna	
+	jsr	navychck	; Pinto y muestro en bitmap.
+	pulx
+	
+	tsx		; Dir. origen de matriz de disparo
+	ldx	10,x	; Convierto los tocados a hundidos
+	jsr	hundido	; si corresponde 
+	bcc	notrans
+	
+	tsx	
+	ldx	0,x	; Si transforme a hundido un barco
+	ldaa	#'H'	; Lo notifico por display
+	staa	0,x
+	jsr	display	; Actualizo el display
+	
+notrans	tsx
+	ldx	10,x	; Dir. origen de matriz de disparo
+	jsr	disbmpt	; Actualizo el bitmap
+	
+	tsx				
+	ldy	10,x	; Dir. origen de matriz de disparo
+	ldx	8,x	; Dir. origen matriz de barcos
+	jsr	winchck	; Analizo si hay ganador
+	bcc	loop	; Si no hay ganador, espero a pasar el turno
+	
+	tsx
+	ldaa	5,x
+	adca	#K_NUM	; Si ganó algún jugador, muestro el ganador
+	ldx	0,x	;en el display
+	ldab	#'W'
+	stab	0,x
+	clr	1,x
+	ldab	#'P'
+	stab	2,x
+	staa	3,x
+	jsr	display
+winner	tsx		
+	ldy	2,x
+	jsr	keypad	;Analizo el teclado.
+	ldaa	0,y	
+	cmpa	#'R'
+	bne	winner
+	jmp	INICIO
+	
+loop	tsx		;Analizo el teclado
+	ldy	2,x	; esperando a que se pase el turno 
+	jsr	keypad	
+	bcc	loop
+	jsr	delay
+	
+	ldaa	0,y	
+	cmpa	#'X'	; Se apretó P1?
+	beq	f_P2
+	jmp	salto_t5
+	
+f_P2	tsx		; Si se apretó P1:
+	tst	5,x	; Reviso que quien termina el turno
+	beq	loop	;sea el jugador 2.
+	jmp	prefin	;y salgo de la subrutina
+	
+salto_t5	cmpa	#'Y'	; Se apretó  P2?
+	beq	f_P1
+	jmp	salto_t7
+	
+f_P1	tsx		; Si se apretó P2:
+	tst	5,x	; Reviso que quien termina el turno
+	bne	loop	;sea el jugador 1.
+	
+prefin	ldaa	5,x	; Antes de salir, muestro a quien le corresponde 
+	ldx	0,x	; el proximo turno en el display
+	adca	#K_NUM+1
+	staa	1,x
+	ldaa	#'P'
+	staa	0,x
+	clr	2,x
+	clr	3,x
+	jmp	t_fin	; Salgo de la subrutina
+	
+salto_t7	cmpa	#'R'	; Se apretó  Reset?
+	beq	t_reset2
+	jmp	loop		
+
+t_reset2	jmp	INICIO	; Si se apretó reset voy al principio del main.
+	
+****************************************************************************************************************
+*					P1 APRETADO
+****************************************************************************************************************
+
+salto_t3	cmpa	#'X'	; Se apretó P1?
+	beq	t_P1
+	jmp	salto_t4
+	
+t_P1	tsx	
+	ldx	5,x	; Reviso de estar en el turno del jugador 2
+	beq	r_P1	
+	jmp	t_key
+	
+r_P1	tsx		; Si se apretó P1:
+	ldx	0,x	; Reseteo las variables y el display
+	clr	3,x	
+	clr	2,x
+	clr	1,x
+	clr	0,x
+	clr	fila
+	clr	columna
+	jmp	t_key
+	
+	
+****************************************************************************************************************
+*					P2 APRETADO
+****************************************************************************************************************	
+
+salto_t4	cmpa	#'Y'	; Se apretó  P2?
+	beq	t_P2
+	jmp	salto_t6
+	
+t_P2	tsx	
+	ldx	5,x	; Reviso de estar en el turno del jugador 2
+	bne	r_P2
+	jmp	t_key
+	
+r_P2	tsx		; Si se apretó P2:
+	ldx	0,x     ; Reseteo las variables y el display
+	clr	3,x	
+	clr	2,x
+	clr	1,x
+	clr	0,x
+	clr	fila
+	clr	columna
+	jmp	t_key
+	
+****************************************************************************************************************
+*					RESET APRETADO
+****************************************************************************************************************
+salto_t6	cmpa	#'R'	; Se apretó  Reset?
+	beq	t_reset
+	jmp	t_key
+
+t_reset	jmp	INICIO	; Si se apretó reset voy al principio del main.
+
+t_fin	%PULL		;programación defensiva
+	rts
+	
+****************************************************************************************************************	
+t_error	equ	*
+	ldaa	$FF	; Protocolo de error
+	staa	fila
+	staa	columna
+	ldaa	#'E'
+	tsx	
+	ldx	0,x
+	staa	0,x
+	clr	2,x
+	clr	3,x
+	jmp	t_key
+	
+********************************************************************************************************
+********************************************************************************************************	
+	rseg	VARS
+fila	rmb	1
+columna	rmb	1
+
+	END

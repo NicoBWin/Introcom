@@ -1,0 +1,260 @@
+################################################################################
+#                                                                              #
+#    Micro Series 6801 Assembler V2.00/DOS              06/Nov/19  20:56:42    #
+#                                                                              #
+#       Source   =   calculo.msa                                               #
+#       List     =   calculo.lst                                               #
+#       Object   =   calculo.r07                                               #
+#       Options  =                                                             #
+#                                                                              #
+#                                               (c) Copyright IAR Systems 1990 #
+################################################################################
+
+
+    1  0000                   p68h11
+    2  0000                   public  calculo
+    3                 $const.def
+    4                 *********************** Ports ****************************
+    5  1007           DDRC    equ     $1007 ;data direction register for C
+    6  1002           PIOC    equ     $1002 ;for strobe B assertion change
+    7  1005           PORTCL  equ     $1005 ;port C latched
+    8  1004           PORTB   equ     $1004 ;port B
+    9  1003           PORTC   equ     $1003 ;rows
+   10                 
+   11                 *************** Cols and Row Ports ***********************
+   12  1003           ROWS    equ     PORTC ;outputs
+   13  1005           COLS    equ     PORTCL ;inputs
+   14                 
+   15                 ******************* Row Masks ****************************
+   16  000E           FIL0    equ     00001110b ;mascaras para manejo de filas
+   17  000D           FIL1    equ     00001101b
+   18  000B           FIL2    equ     00001011b
+   19  0007           FIL3    equ     00000111b
+   20                 **********************************************************
+   21                 *************Caracteristicas de Hardware******************
+   22  0004           DIGITOS equ     4       ;cantidad de elementos del display
+   23  270F           MAX     equ     9999    ;máximo valor de I/O
+   24  FC19           MIN     equ     -999    ;mínimo valor de I/O
+   25  0030           CDC8    equ     $30     ;constante de corrección para ASCII
+   26  0030           ZDIS    equ     $0030   ;cero para el display de 4 elementos
+   27                 **********************************************************
+   28                 ****************************************************************************************************************
+   29                 * CALCULO
+   30                 *       Si se pulso F ('=') en el teclado llama a esta subrutina que se encarga de ver cuales son los operandos 
+   31                 *       y la operación y realizarla.
+   32                 * Parametros recibidos: 
+   33                 *       Dirección del primer operando por IX 
+   34                 *       Inicio de result por IY
+   35                 * Parametros entregados: Resultado de la opeación en la variable en la memoria definida como result
+   36                 ****************************************************************************************************************
+   37  0000                   rseg    CODE
+   38  0000           calculo equ     *
+   39  0000 36                psha
+   40  0001 37                pshb
+   41  0002 3C                pshx
+   42  0003 183C              pshy            ;programación defensiva
+   43                         
+   44  0005 862A              ldaa    #$2A    ;comparo con el caracter de multiplicación en ASCII
+   45  0007 A102              cmpa    2,x
+   46  0009 274C              beq     mula
+   47  000B 4C                inca            ;comparo con los caracteres de suma en ASCII
+   48  000C A102              cmpa    2,X     
+   49  000E 2730              beq     suma
+   50  0010 4C                inca            ;comparo con los caracteres de resta en ASCII
+   51  0011 4C                inca
+   52  0012 A102              cmpa    2,X     
+   53  0014 2713              beq     resta   ;si no es ninguno de los anteriores tiene que dividir 
+   54                 ****************************************************************************************************************        
+   55  0016           diva    equ     *
+   56  0016 EC00              ldd     0,x
+   57  0018 EE04              ldx     4,x     ;4,x es el segundo operando en variables
+   58  001A 2603              bne     divido  ;si el divisor es 0 que resulte en un error
+   59  001C 7E0076            jmp     errcal
+   60                         
+   61  001F BD00D4    divido  jsr     Division
+   62  0022 18ED00            std     0,y
+   63  0025 0C                clc
+   64  0026 7E0077            jmp     fin
+   65                         
+   66                 ****************************************************************************************************************        
+   67  0029           resta   equ     *
+   68  0029 EC00              ldd     0,x
+   69  002B A304              subd    4,x     ;4,x es el segundo operando en variables
+   70  002D 1A83FC19          cpd     #MIN    ;comparo con el máximo valor de 3 digitos
+   71  0031 2D43              blt     errcal
+   72  0033 1A83270F          cpd     #MAX    ;comparo con el máximo valor de 4 digitos
+   73  0037 2E3D              bgt     errcal
+   74  0039 18ED00            std     0,y
+   75  003C 0C                clc             ;indico que la cuenta esta bien
+   76  003D 7E0077            jmp     fin
+   77                 
+   78                 ****************************************************************************************************************
+   79  0040           suma    equ     *
+   80  0040 EC00              ldd     0,x
+   81  0042 E304              addd    4,x     ;4,x es el segundo operando en variables
+   82  0044 1A83270F          cpd     #MAX    ;comparo con el máximo valor de 4 digitos
+   83  0048 2E2C              bgt     errcal
+   84  004A 1A83FC19          cpd     #MIN    ;comparo con el máximo valor de 3 digitos
+   85  004E 2D26              blt     errcal
+   86  0050 18ED00            std     0,y
+   87  0053 0C                clc             ;indico que la cuenta esta bien
+   88  0054 7E0077            jmp     fin
+   89                         
+   90                 ****************************************************************************************************************        
+   91  0057           mula    equ     *
+   92  0057 3C                pshx            ; Paso por stack la dirección del primer factor
+   93  0058 EC00              ldd     0,x     ; Cargo en AccD el primer factor
+   94  005A 2710              beq     zporz   ; Si alguno de los factores es 0, voy a zporz
+   95                         
+   96  005C EE04              ldx     4,x     ; Cargo en IX el segundo factor
+   97  005E 270C              beq     zporz   ; Si alguno de los factores es 0, voy a zporz
+   98                         
+   99  0060 BD007D            jsr     multi
+  100  0063 38                pulx
+  101  0064 2511              bcs     fin     ; Si no hay error, no guardo el resultado.
+  102  0066 18ED00            std     0,y     ;Guardo el resultado donde me indicaron
+  103  0069 7E0077            jmp     fin
+  104                 
+  105  006C 186F00    zporz   clr     0,y     ; Si alguno de los factores es 0,
+  106  006F 186F01            clr     1,y     ;hago que el resultado sea 0 sin necesidad
+  107  0072 38                pulx            ;de saltar a la sbr de multiplicación
+  108  0073 7E0077            jmp     fin
+  109                         
+  110  0076 0D        errcal  sec             ;indico por el carry (=1) que hay un error en la cuenta
+  111  0077 1838      fin     puly            ;programación defensiva
+  112  0079 38                pulx
+  113  007A 32                pula    
+  114  007B 33                pulb
+  115  007C 39                rts
+  116                 **********************************************************************************************
+  117                 **********************************************************************************************
+  118                 
+  119                 **********************************************************************************************
+  120                 *MULTI
+  121                 * Teniendo ambos factores en registros y y recibiendo la dirección del primer factor, calcula
+  122                 *la multiplicación entre ambos operandos.
+  123                 *  Parametros recibidos: 
+  124                 *       Factor 1 por Accd
+  125                 *       Factor 2 por IX
+  126                 *       Dirección primer factor por stack
+  127                 *  Parametros entregados: 
+  128                 *       Resultado en AccD
+  129                 **********************************************************************************************
+  130  007D           multi   equ     *
+  131  007D 183C              pshy
+  132                         
+  133  007F 7F0000            clr     mulneg  ; Limpio la variable que guarda la cant de factores negativos
+  134  0082 1830              tsy     
+  135  0084 18EE04            ldy     4,y     ; Cargo IY como un contador con las veces a sumar el primer factor
+  136                         
+  137  0087 4D                tsta            ; Actualizamos el CCR en funcion del primer factor
+  138  0088 2C0B              bge     mulpos1 ; Solo si no es negativo, saltamos directo al analisis del divisor
+  139  008A 7C0000            inc     mulneg  ; Incremento el contador de numeros negativos
+  140  008D 43                coma            ; Comienzo realizando un complemento a 2 de forma semimanual, para ello:
+  141  008E 53                comb            ;complemento a 1 Acca y Accb por separado  
+  142  008F C30001            addd    #1      ; Sumo uno a AccD
+  143  0092 18ED00            std     0,y     ; Guardo el primer factor como positivo
+  144                         
+  145  0095 8F        mulpos1 xgdx            ; Analizamos el segundo factor
+  146  0096 4D                tsta            ; Actualizamos el CCR en funcion del primer factor
+  147  0097 2C08              bge     mulpos2 ; Solo si no es negativo, saltamos directo a la multiplicación
+  148  0099 7C0000            inc     mulneg  ; Incremento el contador de numeros negativos
+  149  009C 43                coma            ; Comienzo realizando un complemento a 2 de forma semimanual, para ello:
+  150  009D 53                comb            ;complemento a 1 Acca y Accb por separado  
+  151  009E C30001            addd    #1      ; Sumo uno a AccD
+  152                         
+  153                         
+  154  00A1 8F        mulpos2 xgdx            ; Devuelvo el segundo factor a IX
+  155  00A2 CC0000            ldd     #0
+  156  00A5 18E300    multn   addd    0,y     ;la primera vez se carga el número, las demas suma sucesivamente (Producto de números)
+  157  00A8 1A83270F          cpd     #MAX    ;comparo con el máximo valor de 4 digitos
+  158  00AC 241E              bhs     errcalm ; Si es mayor, salto a error
+  159  00AE 09                dex             ;decrementamos el segundo operando para saber cuantas veces sumamos AccD
+  160  00AF 26F4              bne     multn   ;si el contador no es cero, sigo multiplicando  
+  161                         
+  162                         
+  163  00B1 7D0000            tst     mulneg  
+  164  00B4 271A              beq     finmul  ; Si no había numeros negativos
+  165  00B6 740000            lsr     mulneg  ;o ambos eran negativos no complementamos
+  166  00B9 740000            lsr     mulneg  ;el cociente obtenido.
+  167  00BC 2512              bcs     finmul
+  168                         
+  169  00BE 43                coma            ; Una vez realizada la multiplicación hago el mismo proceso que hice al 
+  170  00BF 53                comb            ;principio pero ahora para obtener resultado de forma signada.
+  171  00C0 C30001            addd    #1      ; Sumo uno a AccD
+  172  00C3 1A83FC19          cpd     #MIN    ; Comparo con el valor mínimo
+  173  00C7 2F03              ble     errcalm ; Si el resultado es menor al mínimo, voy a error 
+  174  00C9 7E00D0            jmp     finmul
+  175                         
+  176                 
+  177  00CC 0D        errcalm sec             ; Aviso que hay error
+  178  00CD 7E00D1            jmp     failmul
+  179                 
+  180  00D0 0C        finmul  clc             ; Aviso el exito de la multiplicación
+  181  00D1 1838      failmul puly
+  182  00D3 39                rts             ; Retorno a la subrutina sin haber modificado ningún registro no deseado
+  183                         
+  184                 **********************************************************************************************
+  185                 **********************************************************************************************  
+  186                 
+  187                 
+  188                 **********************************************************************************************
+  189                 *DIVISION
+  190                 *Esta función recibe por AccD el numero signado a dividir y lo divide por el 
+  191                 *numero que se encuentre en IX. El cociente se entrega en AccD 
+  192                 *Parametros recibidos: 
+  193                 *       Dividendo por AccD
+  194                 *       Divisor por IX.
+  195                 *Parametros entregados: cociente en AccD, resto por IX.
+  196                 **********************************************************************************************
+  197  00D4           Division        equ     *
+  198  00D4 183C              pshy
+  199                         
+  200  00D6 18CE0000          ldy     #0      ; Borramos IY para usarlo como contador
+  201  00DA 4D                tsta            ; Actualizamos el CCR en funcion del dividendo
+  202  00DB 2C07              bge     nocom1  ; Solo si no es negativo, saltamos directo al analisis del divisor
+  203  00DD 1808              iny             ; Incremento el contador de numeros negativos
+  204  00DF 43                coma            ; Comienzo realizando un complemento a 2 de forma semimanual, para ello:
+  205  00E0 53                comb            ;complemento a 1 Acca y Accb por separado  
+  206  00E1 C30001            addd    #1      ; Sumo uno a AccD
+  207                         
+  208  00E4 8F        nocom1  xgdx            ; Analizamos el divisor
+  209  00E5 4D                tsta
+  210  00E6 2C07              bge     nocom2  ; Solo si no es negativo, saltamos directo a la división
+  211  00E8 1808              iny             ; Incremento el contador de numeros negativos
+  212  00EA 43                coma            ; Comienzo realizando un complemento a 2 de forma semimanual, para ello:
+  213  00EB 53                comb            ;complemento a 1 Acca y Accb por separado  
+  214  00EC C30001            addd    #1      ; Sumo uno a AccD
+  215                         
+  216                         
+  217  00EF 8F        nocom2  xgdx            ; Devuelvo de divisor a IX
+  218  00F0 02                idiv            ; Divido el resultado de la suma por la cant de elementos que sume.
+  219  00F1 8F                xgdx            ; Transfiero el cociente de IX a Accd.
+  220                         
+  221  00F2 188F              xgdy
+  222  00F4 5D                tstb
+  223  00F5 270E              beq     nocomd  ; Si no había numeros negativos
+  224  00F7 54                lsrb            ;o ambos eran negativos no complementamos
+  225  00F8 54                lsrb            ;el cociente obtenido.
+  226  00F9 250A              bcs     nocomd
+  227                         
+  228  00FB 188F              xgdy
+  229  00FD 43                coma            ; Una vez realizada la división hago el mismo proceso que hice al 
+  230  00FE 53                comb            ;principio pero ahora para obtener resultado de forma signada.
+  231  00FF C30001            addd    #1      ; Sumo uno a AccD
+  232  0102 7E0107            jmp     find
+  233                 
+  234  0105 188F      nocomd  xgdy
+  235  0107 1838      find    puly
+  236  0109 39                rts             ; Retorno a la subrutina sin haber modificado ningún registro no deseado
+  237                         
+  238                 **********************************************************************************************
+  239                 **********************************************************************************************  
+  240  0000                   rseg    VARS
+  241  0000           mulneg  rmb     1
+  242  0001                   END
+
+    Errors:  None         ###########
+    Bytes:   266          # calculo #
+    CRC:     20A6         ###########
+

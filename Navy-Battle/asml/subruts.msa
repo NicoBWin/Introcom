@@ -1,0 +1,222 @@
+	p68h11
+	public	initdis,initbm,outchar,clearm,setm,display,delay,disbmp,disbmpt
+$const.def
+
+	rseg	CODE
+**************************************
+*INITDIS: Inicializar el display
+**************************************
+initdis equ *
+	psha
+	ldaa	#$0F 	;set for output
+	staa	DDRC 	;C output
+	ldaa 	PIOC 	;get current value
+	anda 	#$FE 	;reset bit 0 to 0
+	staa 	PIOC 	;send it out
+	pula
+	rts
+
+**************************************
+*INITBM: Inicializar el bitmap
+**************************************
+initbm 	equ *
+	
+	psha
+	pshb
+	
+	ldaa	#FIL
+	ldab	#COL
+	std	CONTROL		;Configuramos la cant. de filas y de columnas
+	ldaa	#RGB		
+	staa	CONTROL+2	;El bitmap interpreta la memoria como RGB
+	ldd	#MATRIZ
+	std	CONTROL+3	;Donde estara la memoria que lee el Bitmap
+	
+	ldx	#MATRIZ
+	ldaa	#COL*FIL
+	jsr	clearm		;Inicializa el Bitmap
+	
+	pulb
+	pula
+	
+	rts
+	
+**************************************
+*OUTCHAR: 
+* ACCA: Carácter a enviar
+* ACCB: Posición (0-3)
+**************************************
+outchar equ *
+	stab	PORTCL 	;set the position
+	staa 	PORTB	;set the character
+	rts
+	
+********************************************************************************
+*CLEARM: 
+* Borra N cantidad de memorias desde la dirección pedida
+*	Parametros recibidos:
+*  Dirección de origen por IX
+*  Cant de memorias a borrar por AccA
+*	Parametros entregados: Ninguno
+********************************************************************************
+clearm 	equ *
+	pshx
+	psha		;programación defensiva
+	
+borra	clr	0,x	; Borro una memoria
+	inx		; Apunto IX a la sgte memoria
+	deca		; Decremento el contador
+	bne	borra	; Sigo borrando hasta que se borren todas las memorias
+	
+	pula		;programación defensiva
+	pulx
+	rts
+
+********************************************************************************
+*SETM: 
+* Completa con el formato CLOUD, N cantidad de memorias desde la dirección pedida
+*	Parametros recibidos:
+*  Dirección de origen por IX
+*  Cant de memorias a setear por AccA
+*	Parametros entregados: Ninguno
+********************************************************************************
+setm 	equ *
+	pshx
+	psha		
+	pshb		;programación defensiva
+	
+	ldab	#CLOUD	; Coloco un $FF en una memoria
+set	stab	0,x
+	inx		; Apunto IX a la sgte memoria
+	deca		; Decremento el contador
+	bne	set	; Sigo borrando hasta que se borren todas las memorias
+	
+	pulb		;programación defensiva
+	pula
+	pulx
+	rts
+	
+*********************************************************************************
+*DISPLAY:
+*  Carga el contenido de las posiciones de memoria mdis0, mdis1, mdis2, mdis3
+* y muestra su contenido en el display en la posicion 0, 1, 2, 3, respectivamente
+*	Parametros recibidos: 
+*  Inicio de string con caracteres a mostrar por IX
+*	Parametros entregados: El texto mostrado en el display
+*********************************************************************************
+display	equ	*
+
+	psha
+	pshb		;programación defensiva
+	
+	clrb		;limpia b para poder posicionarse en el primer elemento del display
+	ldaa	3,x	;carga el cuarto valor de la posición del string para ponerlo en 
+	jsr	outchar	 el primer elemento del display
+	incb
+	ldaa	2,x	;carga el tercer valor de la posición del string para ponerlo en 
+	jsr	outchar	 el segundo elemento del display
+	incb
+	ldaa	1,x	;carga el segundo valor de la posición del string para ponerlo en 
+	jsr	outchar	 el tercer elemento del display
+	incb
+	ldaa	0,x	;carga el primer valor de la posición del string para ponerlo en
+	jsr	outchar	 el cuarto elemento del display
+	
+	pulb		;programación defensiva
+	pula
+	rts
+
+*********************************************************************************
+* DELAY:
+*	Esta subrutina se encarga de perder tiempo de la manera más eficiente.
+*********************************************************************************
+V1	equ	$8	;constante de corección para un mejor efecto visual segun el equipo donde se simula
+V2	equ	$FFFF	;paramero del IX para poder generar un delay de 0.5Seg
+
+delay	equ	*
+	pshx
+	psha		;programación defensiva
+	
+	ldaa	#V1	;para alargar o acortar el tiempo modificar este valor
+loop2	ldx	#V2	;delay de forma eficiente, solo pierde tiempo decrementando un valor elevado
+loop1	dex
+	bne	loop1
+	deca		;para poder repetir el proceso de decrementar IX se modifica AccA
+	bne	loop2
+	
+	pula		;programación defensiva
+	pulx
+	rts
+	
+*********************************************************************************
+*DISBMP	(EXCLUSIVA PARA EL MOMENTO DE LA CARGA DE LOS TABLEROS)
+*  Carga el contenido de las posiciones de memoria de una matriz de ubicacion 
+* de barcos cualquiera y muesta su contenido en el bitmap. 
+*Parametros recibidos: 
+*	Inicio de la matriz a mostrar por IX. 
+*Parametros entregados: El texto mostrado en el display
+*********************************************************************************
+disbmp	equ	*
+	%PUSH	;programación defensiva
+	
+	ldy	#MATRIZ
+	ldab	#SIZE
+	
+copi	ldaa	0,x	; Analizamos una casilla.
+	cmpa	#CARGUERO	; Si es un carguero 
+	beq	carg		;lo pintamos de verde claro
+	cmpa	#SUBMARI	; Si es una submarino
+	beq	subm		;lo pintamos de verde oscuro
+	cmpa	#WATER		; Si es agua pintamos de azul
+	beq	watt
+color	staa	0,y	;Guardamos la casilla en el bitmap
+	inx		; Pasamos a la sgte casilla
+	iny
+	decb		; Decrementamos el contador de casillas
+	bne	copi	; Si no copiamos todas, seguimos copiando
+	jmp	fin
+	
+carg	ldaa	#INTENSO	; Enmascaramos la casilla
+	anda	#GREEN		;antes de guardarla
+	bra	color
+
+subm	ldaa	#DARK		; Enmascaramos la casilla
+	anda	#GREEN          ;antes de guardarla
+	bra	color
+	
+watt	ldaa	#INTENSO	; Enmascaramos la casilla
+	anda	#BLUE           ;antes de guardarla
+	bra	color
+	
+fin	%PULL	;programación defensiva
+	rts
+**********************************************************************************
+**********************************************************************************
+
+*********************************************************************************
+*DISBMPT
+*  Carga el contenido de las posiciones de memoria de una matriz de ubicacion 
+* de barcos cualquiera y muesta su contenido en el bitmap.
+*Parametros recibidos: 
+*	Inicio de la matriz a mostrar por IX. 
+*Parametros entregados: 
+*********************************************************************************
+disbmpt	equ	*
+	%PUSH	;programación defensiva
+	
+	ldy	#MATRIZ
+	ldab	#SIZE
+copiando	ldaa	0,x	; Tomamos una casillas
+	staa	0,y		;y la guardamos en el bitmap
+	inx			; Pasamos a la siguiente casilla
+	iny
+	decb			; Decrementamos el cont de casillas
+	bne	copiando	; Si no copiamos todas, seguimos copiando
+	
+	%PULL	;programación defensiva
+	rts
+**********************************************************************************
+**********************************************************************************
+
+
+	END

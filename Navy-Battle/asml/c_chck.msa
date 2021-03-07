@@ -1,0 +1,242 @@
+	p68h11
+	public	c_chck
+$const.def
+****************************************************************************************************************
+* C_CHCK
+* Revisa que no haya barcos en las casillas que rodean al barco a colocar.
+* Parametros recibidos:  
+*	Fila del barco por Acca
+*	Columna del barco por Accb
+*	Tipo de barco por stack						(0=submarino  0!= carguero)
+*	Orientacion por stack						(0=horizontal 0!= vertical)
+* Parametros entregados: Si se puede o no colocar el barco por Carry.	(1=se puede  	   0=error)
+****************************************************************************************************************
+	rseg	CODE
+c_chck	equ	*
+	%PUSH		;programación defensiva
+	
+	tsy
+	tst	8,y	; Reviso en el stack si es submarino o carguero
+	beq	sub_chk	; Si estoy cargando submarinos, reviso para la arquitectura de los submarinos.
+	jmp	car_chk	; Si estoy cargando cargueros, reviso para la arquitectura de los cargueros.
+	
+****************************************************************************************
+*				CHECKEO DE SUBMARINOS
+****************************************************************************************
+
+sub_chk	pshb
+	ldab	#COL+1
+dec1	dex
+	decb
+	bne	dec1
+	pulb
+	cmpa	#1		; Si no estoy en la primer fila
+	beq	salt_c10	; No reviso las casillas superiores
+	cmpb	#0		; Si estoy en la primer columna
+	beq	salto_c8	; No reviso la casilla superior-izquierda
+	tst	0,x		; Si no, la reviso
+	beq	salto_c8
+	jmp	e_chck
+	
+salto_c8	tst	1,x	; Reviso la casilla superior-central
+	beq	salto_c9	; este en la columna que este
+	jmp	e_chck
+	
+salto_c9	cmpb	#COL-1	; Si no estoy en la última columna:	
+	beq	salt_c10	
+	tst	2,x	; reviso la casilla superior-derecha
+	beq	salt_c10
+	jmp	e_chck
+	
+
+salt_c10	cmpb	#0	; Si no estoy en la primer columna:
+	beq	salt_c12
+	tst	COL,x	; reviso la casilla central-izquierda
+	beq	salt_c12
+	jmp	e_chck
+	
+salt_c12	cmpb	#COL-1	; Si no estoy en la última columna:	
+	beq	salt_c13	
+	tst	COL+2,x	; reviso la casilla central-derecha
+	beq	salt_c13
+	jmp	e_chck	
+	
+	
+salt_c13	cmpa	#FIL	; Si no estoy en la última fila
+	beq	salt_c17	; No reviso las casillas inferiores
+	cmpb	#'A'		; Si no estoy en la primer columna
+	beq	salt_c15
+	tst	2*COL,x	; Reviso la casilla inferior-izquierda
+	beq	salt_c15
+	jmp	e_chck
+	
+salt_c15	tst 2*COL+1,x	; Reviso la casilla inferior-central
+	beq	salt_c16	; este en la columna que este
+	jmp	e_chck
+	
+salt_c16	cmpb	#COL-1	; Si no estoy en la última columna	
+	beq	salt_c17	
+	tst	2*COL+2,x	; Reviso la casilla inferior-derecha
+	beq	salt_c17
+	jmp	e_chck
+	
+salt_c17	sec
+	jmp	f_chck
+
+****************************************************************************************
+*				CHECKEO DE CARGUEROS 
+****************************************************************************************
+
+car_chk	tsy	
+	tst	9,y
+	beq	car_hor	
+	jmp	car_ver
+
+****************************************************************************************
+*			CHECKEO DE CARGUEROS HORIZONTALES
+****************************************************************************************
+	
+car_hor	pshb
+	ldab	#COL+1
+dec2	dex
+	decb
+	bne	dec2
+	pulb
+	cmpa	#1		; Si estoy en la primer fila me ahorro el 
+	beq	salt_c18	;analisis de las casillas superiores
+	cmpb	#0		; Si estoy en la primer columna
+	beq	salt_c19	;no analizo la casilla superior-izquierda
+	tst	0,x
+	beq	salt_c19
+	jmp	e_chck
+
+salt_c19	tst	1,x	; Analizo las casillas superiores-centrales
+	beq	salt_c20
+	jmp	e_chck
+
+salt_c20	tst	2,x
+	beq	salt_c21
+	jmp	e_chck
+	
+salt_c21	cmpb	#COL-2		; Si estoy en la última columna
+	beq	salt_c18	;no analizo la casilla superior-derecha
+	tst	3,x
+	beq	salt_c18
+	jmp	e_chck
+
+
+salt_c18	cmpb	#0		; Si estoy en la primer columna
+	beq	salt_c22	;no analizo la casilla central-izquierda
+	tst	COL,x
+	beq	salt_c22
+	jmp	e_chck
+	
+salt_c22	cmpb	#COL-2		; Si estoy en la primer columna
+	beq	salt_c23	;no analizo la casilla central-izquierda
+	tst	COL+3,x
+	beq	salt_c23
+	jmp	e_chck
+
+salt_c23	cmpa	#FIL		; Si estoy en la última fila me ahorro el 
+	beq	salt_c24	;analisis de las casillas inferiores
+	cmpb	#0		; Si estoy en la primer columna
+	beq	salt_c25	;no analizo la casilla inferior-izquierda
+	tst	2*COL,x
+	beq	salt_c25
+	jmp	e_chck
+
+salt_c25	tst	(2*COL)+1,x	; Analizo las casillas inferior-centrales
+	beq	salt_c26
+	jmp	e_chck
+
+salt_c26	tst	(2*COL)+2,x
+	beq	salt_c27
+	jmp	e_chck
+	
+salt_c27	cmpb	#COL-2	; Si estoy en la última columna
+	beq	salt_c24	;no analizo la casilla inferior-derecha
+	tst	2*COL+3,x
+	beq	salt_c24
+	jmp	e_chck
+	
+salt_c24	sec		; SI CARGUE CON EXITO LO INDICO POR CARRY
+	jmp	f_chck
+
+****************************************************************************************
+*			CHECKEO DE CARGUEROS VERTICALES
+****************************************************************************************
+
+car_ver	pshb
+	ldab	#COL+1
+dec4	dex
+	decb
+	bne	dec4
+	pulb
+
+***************************************************************************************
+
+	cmpb	#0	; Si estoy en la primer columna, me ahorro
+	beq	salt_c28	;el analisis de las casillas izquierdas
+	cmpa	#1	; Si estoy en la primer fila,
+	beq	salt_c29	;no analizo la casilla sup-izq
+	tst	0,x
+	beq	salt_c29
+	jmp	e_chck
+	
+salt_c29	tst	COL,x	; Analizo las casillas izquierdas-centrales
+	beq	salt_c30		
+	jmp	e_chck
+
+salt_c30	tst	2*COL,x
+	beq	salt_c31
+	jmp	e_chck	
+	
+salt_c31	cmpa	#FIL-1	; Si estoy en la anteultima fila,
+	beq	salt_c28	;no analizo la casilla inf-izq
+	tst	3*COL,x		
+	beq	salt_c28
+	jmp	e_chck	
+	
+salt_c28	cmpa	#1	; Si estoy en la primer fila,
+	beq	salt_c32	;no analizo la casilla sup-central
+	tst	1,x
+	beq	salt_c32
+	jmp	e_chck	
+	
+salt_c32	cmpa	#FIL-1	; Si estoy en la anteultima fila,
+	beq	salt_c33	;no analizo la casilla inf-central
+	tst	(3*COL)+1,x		
+	beq	salt_c33
+	jmp	e_chck
+
+salt_c33	cmpb	#COL-1	; Si estoy en la anteultima columna, me ahorro
+	beq	salt_c24	;el analisis de las casillas derechas
+	cmpa	#1	; Si estoy en la primer fila,
+	beq	salt_c34	;no analizo la casilla sup-der
+	tst	2,x
+	beq	salt_c34
+	jmp	e_chck
+	
+salt_c34	tst	COL+2,x	; Analizo las casillas derechas-centrales
+	beq	salt_c35		
+	jmp	e_chck
+
+salt_c35	tst	(2*COL)+2,x
+	beq	salt_c36
+	jmp	e_chck	
+	
+salt_c36	cmpa	#FIL-1	; Si estoy en la anteultima fila,
+	beq	salt_c24	;no analizo la casilla inf-derecha
+	tst	(3*COL)+2,x
+	beq	salt_c24
+	jmp	e_chck	
+	
+e_chck	clc		; Si hay error lo indico borrando el carry
+f_chck	%PULL		;programación defensiva
+	rts
+	
+*************************************************************************************************************
+*************************************************************************************************************	
+	
+	
+	END
